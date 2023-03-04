@@ -6,18 +6,29 @@ import numpy as np
 import shutil
 from tqdm.auto import tqdm
 
-DRONS_DIR = r"C:\project\Computer_Vision\term_paper_2023\dataset_drone_without_background_crop"
-BACKGROUND_DIR = r"C:\project\Computer_Vision\term_paper_2023\background"
+DRONS_DIR = r"C:\project\Computer_Vision\term_paper_2023\datasets\dataset_drone_without_background_crop"
+BACKGROUND_DIR = r"C:\project\Computer_Vision\term_paper_2023\datasets\background"
 GENERATE_DIR = r"C:\project\Computer_Vision\term_paper_2023\generate"
+IMAGES_DIR = os.path.join(GENERATE_DIR, "images")
+MASKS_DIR = os.path.join(GENERATE_DIR, 'masks')
+YOLO_LABELS_DIR = os.path.join(GENERATE_DIR, 'labels')
+
+if not os.path.exists(IMAGES_DIR):
+    os.makedirs(os.path.join(IMAGES_DIR))
+if not os.path.exists(MASKS_DIR):
+    os.makedirs(os.path.join(MASKS_DIR))
+if not os.path.exists(YOLO_LABELS_DIR):
+    os.makedirs(YOLO_LABELS_DIR)
+
 
 def get_dron_df():
     df = pd.DataFrame (glob.glob( os.path.join(DRONS_DIR,'*.png')), columns=['path_image'])
-    df['id'] = df['path_image'].apply(lambda x : x.split('/')[-1].split('.')[0])
+    df['id'] = df['path_image'].apply(lambda x : x.split('\\')[-1].split('.')[0])
     return df
 
 def get_background_df():
     df = pd.DataFrame (glob.glob( os.path.join(BACKGROUND_DIR,'*.jpg') ), columns=['path_image'])
-    df['id'] = df['path_image'].apply(lambda x : x.split('/')[-1].split('.')[0])
+    df['id'] = df['path_image'].apply(lambda x : x.split('\\')[-1].split('.')[0])
     return df
 
 df_drons = get_dron_df()
@@ -25,14 +36,18 @@ df_background = get_background_df()
 
 
 
-if not os.path.exists(os.path.join(GENERATE_DIR, "image")):
-    os.makedirs(os.path.join(GENERATE_DIR, "image"))
-
-
-
+def to_binary(img):
+    T = 125
+    target = (np.array(img.split()[-1])>T).astype(int)
+    target = np.stack((target, target, target), axis=2) * 255
+    return Image.fromarray(np.uint8(target)).convert('RGBA')
 def generate_raw(n):
-    list_drons = df_drons.sample(n, replace=True)['path_image'].to_list()
-    list_background = df_background.sample(n, replace=True)['path_image'].to_list()
+    drons = df_drons.sample(n, replace=True)
+    path_drons = drons['path_image'].to_list()
+    id_drons = drons['id'].to_list()
+    background = df_background.sample(n, replace=True)
+    path_backgrounds = background['path_image'].to_list()
+    id_backgrounds = background['id'].to_list()
     id_image = []
     xmin = []
     ymin = []
@@ -41,8 +56,8 @@ def generate_raw(n):
     output_size = 512
     for i in tqdm(range(n)):
         try:
-            dron = Image.open(list_drons[i])
-            background = Image.open(list_background[i])
+            dron = Image.open(path_drons[i]).convert("RGBA")
+            background = Image.open(path_backgrounds[i]).convert("RGB")
 
             background_width, background_height = background.size
             dron_width, dron_height = dron.size
@@ -64,16 +79,41 @@ def generate_raw(n):
             y_dron = np.random.randint(0, output_size - dron_height, 1)[0]
 
             background.paste(dron, (x_dron, y_dron), dron)
-            #             background.paste(dron, (x_dron, y_dron))
-            #             background.show()
-            #             ImageShow.show(background)
-            background.save(os.path.join(GENERATE_DIR, "image", str(i) + '.jpg'))
 
+            # SAVE MASK
+            # mask = Image.new("RGBA", (512, 512), (0, 0, 0, 255))
+            # bin_dron = to_binary(dron)
+            # mask.paste(bin_dron, (x_dron, y_dron), dron)
+            # mask.save(
+            #     os.path.join(MASKS_DIR, f"{str(i)}_{str(id_drons[i])}_{str(id_backgrounds[i])}.png"))
+
+            mask = Image.new("RGBA", (512, 512), (0, 0, 0, 255))
+            rect = Image.new("RGBA", (dron_width, dron_height), (255, 255, 255, 255))
+            mask.paste(rect, (x_dron, y_dron), rect)
+            mask.save(
+                  os.path.join(MASKS_DIR, f"{str(i)}_{str(id_drons[i])}_{str(id_backgrounds[i])}.png"))
+
+            # SAVE GENERATE IMAGE
+            background.save(os.path.join(IMAGES_DIR , f"{str(i)}_{str(id_drons[i])}_{str(id_backgrounds[i])}.jpg"))
+
+            # FOR CSV
             xmin.append(x_dron)
             ymin.append(y_dron)
             xmax.append(x_dron + dron_width)
             ymax.append(y_dron + dron_height)
             id_image.append(i)
+
+            # YOLO LABELS
+            width = dron_width / output_size
+            height = dron_height / output_size
+            x_center = (x_dron + dron_width / 2) / output_size
+            y_center = (y_dron + dron_height / 2) / output_size
+
+            str_ = "0 " + str(x_center) + " " + str(y_center) + " " + str(width) + " " + str(height)
+
+            path_label_coco = os.path.join(YOLO_LABELS_DIR, str(i) + '.txt')
+            with open(path_label_coco, 'w') as f:
+                f.write(str_)
 
         except Exception as e:
             print(e)
@@ -94,5 +134,12 @@ def generate_raw(n):
 #         os.remove(row['path_image'])
 
 print(df_drons)
-generate_raw(6000)
+generate_raw(100)
+# mask = Image.open(r"C:\project\Computer_Vision\term_paper_2023\overture-creations-5sI6fQgYIuo_mask.png").convert("RGB")
+# dron = Image.open(r"C:\project\Computer_Vision\term_paper_2023\datasets\dataset_drone_without_background_crop\0.png").convert("RGBA")
+
+# print(np.array(mask))
+
+
+# mask.show()
 shutil.make_archive(r"C:\project\Computer_Vision\term_paper_2023\drons_with_background", 'zip', GENERATE_DIR)
