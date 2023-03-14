@@ -3,7 +3,7 @@ import xml.dom.minidom
 import numpy as np
 
 
-def check_yolo_label(image, x_center_yolo, y_center_yolo, width_drone_yolo, height_drone_yolo):
+def check_yolo_label(image, x_center_yolo, y_center_yolo, width_drone_yolo, height_drone_yolo, save_path=None):
     width, height = image.size
     x0 = (x_center_yolo - width_drone_yolo / 2) * width
     y0 = (y_center_yolo - height_drone_yolo / 2) * height
@@ -19,7 +19,10 @@ def check_yolo_label(image, x_center_yolo, y_center_yolo, width_drone_yolo, heig
 
     draw_image = ImageDraw.Draw(image)
     draw_image.line(((x0, y0), (x1, y1), (x2, y2), (x3, y3), (x0, y0)), fill=(255, 0, 0))
-    image.show()
+    if not save_path:
+        image.show()
+    else:
+        image.save(save_path)
 
 
 def parse_xml(path_xml):
