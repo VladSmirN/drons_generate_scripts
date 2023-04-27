@@ -1,8 +1,9 @@
 from PIL import Image, ImageDraw
 import xml.dom.minidom
 import numpy as np
-
-
+import glob
+import os
+import pandas as pd
 def check_yolo_label(image, x_center_yolo, y_center_yolo, width_drone_yolo, height_drone_yolo, save_path=None):
     width, height = image.size
     x0 = (x_center_yolo - width_drone_yolo / 2) * width
@@ -79,3 +80,34 @@ def get_iou(ground_truth, pred):
     iou = area_of_intersection / area_of_union
 
     return iou
+
+def label_yolo_to_csv(path_labels):
+    id_class = []
+    id_image = []
+    x = []
+    y = []
+    w = []
+    h = []
+    paths = glob.glob(os.path.join(path_labels, "*.txt"))
+    for path in  paths :
+        id_ = path.split('\\')[-1].split('.')[0]
+        fh1 = open(path, "r")
+        for line in fh1:
+            line = line.replace("\n", "")
+            if line.replace(' ', '') == '':
+                continue
+            splitLine = line.split(" ")
+            id_class.append(splitLine[0])
+            x.append(float(splitLine[1]))
+            y.append(float(splitLine[2]))
+            w.append(float(splitLine[3]))
+            h.append(float(splitLine[4]))
+            id_image.append(id_)
+
+    df = pd.DataFrame({'id_image': id_image,
+                       'id_class':id_class,
+                        'xc': x,
+                        'yc' : y,
+                        'w': w,
+                        'h' : h})
+    return df

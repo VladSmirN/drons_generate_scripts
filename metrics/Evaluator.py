@@ -169,8 +169,8 @@ class Evaluator:
                 'TP': TP,
                 'FP': FP,
                 'FN': FN,
-                'detections': detections,
-                "groundTruths":groundTruths
+                'detections': dects,
+                "groundTruths": groundTruthsForClass
             }
             ret.append(r)
         return ret
